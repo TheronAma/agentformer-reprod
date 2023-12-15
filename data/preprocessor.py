@@ -3,6 +3,7 @@ import cv2
 import glob
 from .map import GeometricMap
 
+import ipdb
 
 class preprocess(object):
     
@@ -12,7 +13,7 @@ class preprocess(object):
         self.data_root = data_root
         self.past_frames = parser.past_frames
         self.future_frames = parser.future_frames
-        self.frame_skip = parser.get('frame_skip', 1)
+        self.frame_skip = 1 # parser.get('frame_skip', 1)
         self.min_past_frames = parser.get('min_past_frames', self.past_frames)
         self.min_future_frames = parser.get('min_future_frames', self.future_frames)
         self.traj_scale = parser.traj_scale
@@ -49,6 +50,8 @@ class preprocess(object):
             'Bicycle': 14, 'Bus': 15, 'Trailer': 16, 'Emergency': 17, 'Construction': 18}
         for row_index in range(len(self.gt)):
             self.gt[row_index][2] = class_names[self.gt[row_index][2]]
+        self.gt_str = self.gt
+        self.gt = self.gt[:, :18]
         self.gt = self.gt.astype('float32')
         self.xind, self.zind = 13, 15
 
@@ -156,7 +159,6 @@ class preprocess(object):
 
         assert frame - self.init_frame >= 0 and frame - self.init_frame <= self.TotalFrame() - 1, 'frame is %d, total is %d' % (frame, self.TotalFrame())
 
-    
         pre_data = self.PreData(frame)
         fut_data = self.FutureData(frame)
         valid_id = self.get_valid_id(pre_data, fut_data)
@@ -173,6 +175,8 @@ class preprocess(object):
         pre_motion_3D, pre_motion_mask = self.PreMotion(pre_data, valid_id)
         fut_motion_3D, fut_motion_mask = self.FutureMotion(fut_data, valid_id)
 
+
+
         data = {
             'pre_motion_3D': pre_motion_3D,
             'fut_motion_3D': fut_motion_3D,
@@ -186,7 +190,10 @@ class preprocess(object):
             'pred_mask': pred_mask,
             'scene_map': self.geom_scene_map,
             'seq': self.seq_name,
-            'frame': frame
+            'frame': frame,
+            # 'scene_vis_map' : self.scene_vis_map,
+            'gt' : self.gt_str
         }
+
 
         return data

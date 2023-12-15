@@ -6,6 +6,9 @@ import subprocess
 import shutil
 import ipdb
 
+from itertools import cycle
+
+from nuscenes.nuscenes import NuScenes
 from nuscenes.map_expansion.map_api import NuScenesMap
 from nuscenes.map_expansion import arcline_path_utils
 from nuscenes.map_expansion.bitmap import BitMap
@@ -17,6 +20,81 @@ from utils.config import Config
 from model.model_lib import model_dict
 from utils.utils import prepare_seed, print_log, mkdir_if_missing
 
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import tqdm
+import numpy as np
+
+from nuscenes.map_expansion.map_api import NuScenesMap
+from nuscenes.map_expansion import arcline_path_utils
+from nuscenes.map_expansion.bitmap import BitMap
+
+def visualize_model(nusc, nusc_maps, data, prev_gt_motion_3D, gt_motion_3D, recon_motion_3D, sample_motion_3D, viz_dir):
+    plt.clf()
+
+    scene_token = nusc.field2token('scene', 'name', data['seq'])[0]
+    scene_record = nusc.get('scene', scene_token)
+    log_record = nusc.get('log', scene_record['log_token'])
+    location = log_record['location']
+
+    nusc_map = nusc_maps[location]
+
+    flattened = torch.cat([torch.flatten(sample_motion_3D, 0, 2), \
+                           torch.flatten(recon_motion_3D, 0, 1), \
+                           torch.flatten(gt_motion_3D, 0, 1), \
+                           torch.flatten(prev_gt_motion_3D, 0, 1)])
+    
+    min_x = torch.min(flattened[:, 0]).item() - 4
+    min_y = torch.min(flattened[:, 1]).item() - 4
+    max_x = torch.max(flattened[:, 0]).item() + 4
+    max_y = torch.max(flattened[:, 1]).item() + 4
+
+    patch = (min_x, min_y, max_x, max_y)
+
+    bitmap = BitMap(nusc_map.dataroot, nusc_map.map_name, 'basemap')
+    # fig, ax = nusc_map.render_layers(['lane'], figsize=1, bitmap=bitmap)
+    # my_patch = (300, 1000, 500, 1200)
+    # fig, ax = nusc_maps['singalpore-onenorth'].render_map_patch(my_patch, nusc_maps['singapore-onenorth'].non_geometric_layers, figsize=(12, 12), bitmap=bitmap)
+    # plt.savefig('test.png')
+
+    # ipdb.set_trace()
+
+    fig, ax = nusc_map.render_map_patch(patch, nusc_map.non_geometric_layers, figsize=(10, 10), bitmap=bitmap)
+
+    cycol = cycle('bgrcmk')
+
+    for i, gt_traj in enumerate(gt_motion_3D):
+        color = next(cycol)
+        prev_gt_traj = prev_gt_motion_3D[i]
+        sample_trajs = sample_motion_3D[i]
+
+        # ipdb.set_trace()
+        sample_handle = None
+        gt_handle = ax.scatter(torch.cat([prev_gt_traj[:, 0], gt_traj[:, 0]]).cpu(), torch.cat([prev_gt_traj[:, 1], gt_traj[:, 1]]).cpu(), label='ground_truth', alpha=1.0, c='black', zorder=3)
+        for sample_traj in sample_trajs:
+            sample_handle = ax.scatter(sample_traj[:, 0].cpu(), sample_traj[:, 1].cpu(), label='sample', alpha=0.3, c='blue', zorder=2)
+            for j in range(len(sample_traj) - 1):
+                ax.plot((sample_traj[j, 0].cpu(), sample_traj[j, 1].cpu()), (sample_traj[j+1, 0].cpu(), sample_traj[j+1, 1].cpu()), label='sample', alpha=0.3, c='blue', zorder=3)
+        
+    old_legend = ax.get_legend()
+    
+    ax.add_artist(old_legend)
+
+    # ax.legend(handles=[gt_handle, sample_handle])
+
+    ax.legend(handles=[sample_handle, gt_handle])
+                
+    plt.axis('off')
+
+    dir_name = f'{viz_dir}/{data["seq"]}'
+    mkdir_if_missing(dir_name)
+    fname = f'{viz_dir}/{data["seq"]}/frame_{int(data["frame"]):06d}.png'
+
+    plt.savefig(fname, bbox_inches='tight', pad_inches=0)
+
+    # ipdb.set_trace()
+
+    return
 
 def get_model_prediction(data, sample_k):
     model.set_data(data)
@@ -74,8 +152,16 @@ def save_prediction(pred, data, suffix, save_dir, pre=False):
 
 def test_model(generator, save_dir, cfg):
     total_num_pred = 0
+    nusc = NuScenes(version='v1.0-trainval', dataroot='nuscenes_erica', verbose=True)
+    
+    nusc_maps = {} # boston-seaport singapore-hollandvillage singapore-queenstown
+    nusc_maps['singapore-onenorth'] = NuScenesMap(dataroot='nuscenes_erica', map_name='singapore-onenorth')
+    nusc_maps['boston-seaport'] = NuScenesMap(dataroot='nuscenes_erica', map_name='boston-seaport')
+    nusc_maps['singapore-hollandvillage'] = NuScenesMap(dataroot='nuscenes_erica', map_name='singapore-hollandvillage')
+    nusc_maps['singapore-queenstown'] = NuScenesMap(dataroot='nuscenes_erica', map_name='singapore-queenstown')
     while not generator.is_epoch_end():
         data = generator()
+        # ipdb.set_trace()
         if data is None:
             continue
         seq_name, frame = data['seq'], data['frame']
@@ -100,6 +186,19 @@ def test_model(generator, save_dir, cfg):
         save_prediction(prev_gt_motion_3D, data, '', prev_gt_dir, pre=True)
         num_pred = save_prediction(gt_motion_3D, data, '', gt_dir)              # save gt
         total_num_pred += num_pred
+
+        viz_dir = f'{save_dir}/viz'
+
+
+        # bitmap = BitMap(nusc_maps[].dataroot, nusc_map.map_name, 'basemap')
+        # fig, ax = nusc_map.render_layers(['lane'], figsize=1, bitmap=bitmap)
+        # my_patch = (300, 1000, 500, 1200)
+        # fig, ax = nusc_maps['singalpore-onenorth'].render_map_patch(my_patch, nusc_maps['singapore-onenorth'].non_geometric_layers, figsize=(12, 12), bitmap=bitmap)
+        # plt.savefig('test.png')
+
+        visualize_model(nusc, nusc_maps, data, prev_gt_motion_3D, gt_motion_3D, recon_motion_3D, sample_motion_3D, viz_dir)
+
+        # ipdb.set_trace()
 
     print_log(f'\n\n total_num_pred: {total_num_pred}', log)
     if cfg.dataset == 'nuscenes_pred':
@@ -166,8 +265,11 @@ if __name__ == '__main__':
             # remove eval folder to save disk space
             if args.cleanup:
                 shutil.rmtree(save_dir)
+
             
-            viz_dir = f'{save_dir}/viz'
+
+
+
             
 
 

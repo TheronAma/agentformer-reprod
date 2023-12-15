@@ -8,6 +8,72 @@ from utils.utils import print_log, AverageMeter, isfile, print_log, AverageMeter
 
 """ Metrics """
 
+def compute_ADE_joint(pred_arr, gt_arr, return_sample_vals=False, return_argmin=False, **kwargs):
+    """
+    pred_arr: (num_peds, samples, frames, 2)
+    gt_arr: (num_peds, frames, 2)
+    return_sample_vals: if true, returns an array, where each element reperesents the avg pedestrian ADE for each sample
+    return_argmin: if true, returns the index of sample that has min Joint ADE
+    """
+    pred_arr = np.array(pred_arr)
+    gt_arr = np.array(gt_arr)
+    diff = pred_arr - np.expand_dims(gt_arr, axis=1)  # num_peds x samples x frames x 2
+    dist = np.linalg.norm(diff, axis=-1)  # num_peds x samples x frames
+    ade_per_sample = dist.mean(axis=-1).mean(axis=0)  # samples
+    ade = ade_per_sample.min(axis=0)  # (1, )
+    return_vals = [ade]
+    if return_sample_vals:  # for each sample: the avg ped ADE
+        return_vals.append(ade_per_sample)
+    if return_argmin:  # index of sample that has min sequence ADE (1,)
+        return_vals.append(ade_per_sample[:, np.newaxis].argmin(axis=0))
+    return return_vals[0] if len(return_vals) == 1 else return_vals
+
+
+def compute_FDE_joint(pred_arr, gt_arr, return_sample_vals=False, return_argmin=False, **kwargs):
+    """
+    pred_arr: (num_peds, samples, frames, 2)
+    gt_arr: (num_peds, frames, 2)
+    return_sample_vals: if true, returns an array, where each element reperesents the avg pedestrian FDE for each sample
+    return_argmin: if true, returns the index of sample that has min Joint FDE
+    """
+    pred_arr = np.array(pred_arr)
+    gt_arr = np.array(gt_arr)
+    diff = pred_arr - np.expand_dims(gt_arr, axis=1)  # num_peds x samples x frames x 2
+    dist = np.linalg.norm(diff, axis=-1)  # num_peds x samples x frames
+    fde_per_sample = dist[..., -1].mean(axis=0)  # samples
+    fde = fde_per_sample.min(axis=0)  # (1, )
+    return_vals = [fde]
+    if return_sample_vals:  # for each sample: the avg ped ADE (n_samples,)
+        return_vals.append(fde_per_sample)
+    if return_argmin:  # index of sample that has min sequence FDE (1,)
+        return_vals.append(fde_per_sample[:, np.newaxis].argmin(axis=0))
+    return return_vals[0] if len(return_vals) == 1 else return_vals
+
+
+def compute_ADE_marginal(pred_arr, gt_arr, return_sample_vals=False, return_ped_vals=False,
+                         return_argmin=False, **kwargs):
+    """
+    about 4 times faster than orgiinal AgentFormer computation due to numpy vectorization
+    pred_arr: (num_peds, samples, frames, 2)
+    gt_arr: (num_peds, frames, 2)
+    """
+    # assert pred_arr.shape[1] == 20, pred_arr.shape
+    pred_arr = np.array(pred_arr)
+    gt_arr = np.array(gt_arr)
+    diff = pred_arr - np.expand_dims(gt_arr, axis=1)  # num_peds x samples x frames x 2
+    dist = np.linalg.norm(diff, axis=-1)  # num_peds x samples x frames
+    ades_per_sample = dist.mean(axis=-1)  # num_peds x samples
+    made_per_ped = ades_per_sample.min(axis=-1)  # num_peds
+    avg_made = made_per_ped.mean(axis=-1)  # (1,)
+    return_vals = [avg_made]
+    if return_sample_vals:  # for each sample: the avg ped ADE
+        return_vals.append(ades_per_sample.mean(axis=0))
+    if return_ped_vals:  # the ADE of each ped-sample (n_ped, samples)
+        return_vals.append(ades_per_sample)
+    if return_argmin:  # for each ped: index of sample that is argmin
+        return_vals.append(ades_per_sample.argmin(axis=-1))
+    return return_vals[0] if len(return_vals) == 1 else return_vals
+
 def compute_ADE(pred_arr, gt_arr):
     ade = 0.0
     for pred, gt in zip(pred_arr, gt_arr):
@@ -71,8 +137,10 @@ if __name__ == '__main__':
     print_log('loading GT from %s' % gt_dir, log_file)
 
     stats_func = {
-        'ADE': compute_ADE,
-        'FDE': compute_FDE
+        'Marginal ADE': compute_ADE,
+        'Marginal FDE': compute_FDE,
+        'Joint ADE': compute_ADE_joint,
+        'Joint FDE': compute_FDE_joint
     }
 
     stats_meter = {x: AverageMeter() for x in stats_func.keys()}

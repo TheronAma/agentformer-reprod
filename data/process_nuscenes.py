@@ -11,6 +11,10 @@ import numpy as np
 import cv2
 import argparse
 
+from nuscenes.utils.geometry_utils import view_points, box_in_image, BoxVisibility, transform_matrix
+
+import ipdb
+
 
 NUM_IN_TRAIN_VAL = 200
 past_frames = 4
@@ -46,6 +50,15 @@ def get_prediction_challenge_split(split: str, dataroot: str) -> List[str]:
 
     return prediction_scenes, scenes_for_split, list(chain.from_iterable(token_list_for_scenes))
 
+def get_image_path(nusc, annotation):
+    sample_record = nusc.get('sample', annotation['sample_token'])
+    boxes, cam = [], []
+    cams = [key for key in sample_record['data'].keys() if 'CAM' in key]
+    for cam in cams:
+        datapath, boxes, _ = nusc.get_sample_data(sample_record['data'][cam], box_vis_level=BoxVisibility.ANY, selected_anntokens=[annotation['token']])
+        if len(boxes) > 0:
+            return datapath
+    return None
 
 if __name__ == "__main__":
 
@@ -58,7 +71,7 @@ if __name__ == "__main__":
     DATAOUT = args.data_out
 
     nuscenes = NuScenes('v1.0-trainval', dataroot=DATAROOT)
-    map_version = '0.1'
+    map_version = '1.3'
     splits = ['train', 'val', 'test']
 
     for split in splits:
@@ -109,6 +122,7 @@ if __name__ == "__main__":
             frame_id = 0
             sample = first_sample
             cvt_data = []
+            ego_poses = []
             while True:
                 if sample['token'] in all_samples:
                     instances_in_frame = []
@@ -121,7 +135,7 @@ if __name__ == "__main__":
                             continue
                         instances_in_frame.append(instance)
                         # get data
-                        data = np.ones(18) * -1.0
+                        data = np.ones(19) * -1.0
                         data[0] = frame_id
                         data[1] = all_instances.index(instance)
                         data[10] = annotation['size'][0]
@@ -132,6 +146,7 @@ if __name__ == "__main__":
                         data[15] = annotation['translation'][1]
                         data[16] = Quaternion(annotation['rotation']).yaw_pitch_roll[0]
                         data[17] = 1 if cur_data in scene_data_orig_set else 0
+
                         data = data.astype(str)
                         if 'car' in category:
                             data[2] = 'Car'
@@ -145,6 +160,9 @@ if __name__ == "__main__":
                             data[2] = 'Construction'
                         else:
                             raise ValueError(f'wrong category {category}')
+                        data = list(data)
+                        data[18] = get_image_path(nuscenes, annotation)
+                        data = np.array(data)
                         cvt_data.append(data)
 
                 frame_id += 1
@@ -152,8 +170,12 @@ if __name__ == "__main__":
                     sample = nuscenes.get('sample', sample['next'])
                 else:
                     break
+
                 
             cvt_data = np.stack(cvt_data)
+
+            # Generate ego poses
+            
 
             # Generate Maps
             map_name = nuscenes.get('log', scene['log_token'])['location']
@@ -200,7 +222,7 @@ if __name__ == "__main__":
             cv2.imwrite(f'{DATAOUT}/map_{map_version}/{scene_name}.png', np.transpose(map_mask_vehicle, (1, 2, 0)))
             cv2.imwrite(f'{DATAOUT}/map_{map_version}/vis_{scene_name}.png', cv2.cvtColor(np.transpose(map_mask_plot, (1, 2, 0)), cv2.COLOR_RGB2BGR))
 
-            pred_num = int(cvt_data[:, -1].astype(np.float32).sum())
+            pred_num = int(cvt_data[:, -2].astype(np.float32).sum())
             assert pred_num == len(scene_data_orig)
             total_pred += pred_num
 

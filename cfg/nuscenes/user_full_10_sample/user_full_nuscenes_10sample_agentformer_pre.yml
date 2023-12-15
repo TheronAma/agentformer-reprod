@@ -3,18 +3,20 @@
 description                  : AgentFormer (Before DLow)
 results_root_dir             : results
 seed                         : 1
-dataset                      : eth
+dataset                      : nuscenes_pred
 data_root_ethucy             : datasets/eth_ucy
 data_root_nuscenes_pred      : datasets/nuscenes_pred
+load_map                     : true
+map_version                  : 0.1
 
 # ------------------- Feature Extractor -------------------------
 
-past_frames                  : 8
+past_frames                  : 4
 future_frames                : 12
-min_past_frames              : 8
+min_past_frames              : 2
 min_future_frames            : 12
 
-traj_scale                   : 2
+traj_scale                   : 20
 motion_dim                   : 2
 forecast_dim                 : 2
 
@@ -26,13 +28,23 @@ tf_model_dim: 256
 tf_ff_dim: 512
 tf_nhead: 8
 tf_dropout: 0.1
-input_type: ['scene_norm', 'vel']
+input_type: ['scene_norm', 'vel', 'heading', 'map']
+fut_input_type: ['scene_norm', 'vel', 'heading', 'map']
+dec_input_type: ['heading', 'map']
 pred_type: 'scene_norm'
 sn_out_type: 'norm'
-max_train_agent: 32
 pos_concat: true
 rand_rot_scene: true
-scene_orig_all_past: true
+
+use_map: true
+map_encoder:
+  model_id: map_cnn
+  normalize: true
+  hdim: [32, 32, 32, 1]
+  kernels: [5, 5, 5, 3]
+  strides: [2, 2, 1, 1]
+  out_dim: 32
+  dropout: 0.0
 
 context_encoder:
   nlayer: 2
@@ -43,12 +55,11 @@ future_decoder:
 
 future_encoder:
   nlayer: 2
-  out_mlp_dim: [512, 256]
 
 # ------------------- VAE-------------------------
 
 nz                           : 32
-sample_k                     : 20
+sample_k                     : 10
 learn_prior                  : true
 
 # ------------------- Training Parameters -------------------------
@@ -62,13 +73,13 @@ loss_cfg:
     min_clip: 2.0
   sample:
     weight: 1.0
-    k: 20
+    k: 10
 
 num_epochs                   : 100
 lr_fix_epochs                : 10
 lr_scheduler: 'step'
 decay_step: 10
 decay_gamma: 0.5
-print_freq                   : 50
+print_freq                   : 20
 model_save_freq              : 10
 

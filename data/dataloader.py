@@ -5,6 +5,7 @@ from .preprocessor import preprocess
 from .ethucy_split import get_ethucy_split
 from utils.utils import print_log
 
+import ipdb
 
 class data_generator(object):
 
@@ -82,7 +83,7 @@ class data_generator(object):
         self.index += 1
         
         data = seq(frame)
-        return data      
+        return data
 
     def __call__(self):
         return self.next_sample()

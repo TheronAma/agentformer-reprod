@@ -1,1 +1,0 @@
-This folder is where you put your processed nuScenes prediction data.
