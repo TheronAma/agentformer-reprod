@@ -4,6 +4,7 @@ from utils.config import Config
 import os
 from matplotlib import pyplot as plt
 from utils.utils import mkdir_if_missing
+import matplotlib.animation as animation
 
 VIZ_LIMIT = 100
 
@@ -26,7 +27,7 @@ if __name__=='__main__':
 
     cfg = Config(args.cfg)
 
-    epoch = cfg.get_last_epoch()
+    epoch = 90 # cfg.get_last_epoch()
 
     save_dir = f'{cfg.result_dir}/epoch_{epoch:04d}/{"test"}'#  mkdir_if_missing(save_dir)
     recon_dir = os.path.join(save_dir, 'recon')
@@ -47,8 +48,6 @@ if __name__=='__main__':
         scene_gt_files = sorted(os.listdir(scene_gt_dir))
 
         viz_dir = os.path.join(save_dir, 'viz', scene); mkdir_if_missing(viz_dir)
-
-        
         
         for file in scene_gt_files:
             
@@ -69,19 +68,35 @@ if __name__=='__main__':
 
             for agent in gt_pred:
                 plt.clf()
+                fig = plt.gcf()
 
                 samples = 0
+
                 for sample_dict in sample_pred:
-                    plt.scatter(sample_dict[agent][:, 2], sample_dict[agent][:, 3], label='samples', alpha=0.15, c='orange')
+                    plt.scatter(sample_dict[agent][:, 2], sample_dict[agent][:, 3], label='samples', alpha=0.0, c='orange')
                     if samples >= VIZ_LIMIT:
                         break
                     samples += 1
-                plt.scatter(gt_pred[agent][:, 2], gt_pred[agent][:, 3], label='ground_truth', alpha=1.0, c='blue')
-                # plt.scatter(recon_pred[agent][:, 2], recon_pred[agent][:, 3], label='recon_traj', alpha=0.2)
+                plt.scatter(gt_pred[agent][:, 2], gt_pred[agent][:, 3], label='ground_truth', alpha=0.0, c='black')
+                plt.scatter(recon_pred[agent][:, 2], recon_pred[agent][:, 3], label='recon_traj', alpha=0.0)
+
+                def animate(frame):
+
+                    diff = len(gt_pred[agent]) - len(gt_pred[agent])
+                    for sample_dict in sample_pred:
+                        if (frame >= diff):
+                            plt.scatter(sample_dict[agent][frame - diff, 2], sample_dict[agent][frame - diff, 3], label='samples', alpha=0.15, c='blue')
+                    
+                    plt.scatter(gt_pred[agent][frame, 2],  gt_pred[agent][frame, 3], label='ground_truth', alpha=1.0, c='black')
+
+
+
+                anim = animation.FuncAnimation(fig, animate, range(len(gt_pred[agent])), interval = 200, repeat = True, repeat_delay = 2000)
+                writer = animation.PillowWriter(fps = 5)
                 
-                
-                viz_fname = os.path.join(viz_dir, f'{file[:-4]}_{int(agent)}.png')
-                plt.savefig(viz_fname)
+                viz_fname = os.path.join(viz_dir, f'{file[:-4]}_{int(agent)}.gif')
+                # plt.savefig(viz_fname)
+                anim.save(viz_fname, writer=writer)
         
 
         
