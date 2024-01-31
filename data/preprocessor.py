@@ -13,7 +13,7 @@ class preprocess(object):
         self.data_root = data_root
         self.past_frames = parser.past_frames
         self.future_frames = parser.future_frames
-        self.frame_skip = 1 # parser.get('frame_skip', 1)
+        self.frame_skip = parser.get('frame_skip', 1)
         self.min_past_frames = parser.get('min_past_frames', self.past_frames)
         self.min_future_frames = parser.get('min_future_frames', self.future_frames)
         self.traj_scale = parser.traj_scale
@@ -30,6 +30,9 @@ class preprocess(object):
             delimiter = ' '
         elif parser.dataset in {'eth', 'hotel', 'univ', 'zara1', 'zara2'}:
             label_path = f'{data_root}/{parser.dataset}/{seq_name}.txt'
+            delimiter = ' '
+        elif parser.dataset == "jackrabbot":
+            label_path = os.path.join(data_root, 'label/{}/{}.txt'.format(split, seq_name))
             delimiter = ' '
         else:
             assert False, 'error'
@@ -165,7 +168,7 @@ class preprocess(object):
         if len(pre_data[0]) == 0 or len(fut_data[0]) == 0 or len(valid_id) == 0:
             return None
 
-        if self.dataset == 'nuscenes_pred':
+        if self.dataset == 'nuscenes_pred' or self.dataset == "jackrabbot":
             pred_mask = self.get_pred_mask(pre_data[0], valid_id)
             heading = self.get_heading(pre_data[0], valid_id)
         else:

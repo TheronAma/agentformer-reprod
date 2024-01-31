@@ -14,6 +14,8 @@ from utils.torch import *
 from utils.config import Config
 from utils.utils import prepare_seed, print_log, AverageMeter, convert_secs2time, get_timestring
 
+import wandb
+
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = True
@@ -62,6 +64,10 @@ def train(epoch):
     scheduler.step()
     model.step_annealer()
 
+    wandb.log({
+        x: y.avg for x, y in train_loss_meter.items()
+    })
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -86,6 +92,13 @@ if __name__ == '__main__':
     print_log("cudnn version : {}".format(torch.backends.cudnn.version()), log)
     tb_logger = SummaryWriter(cfg.tb_dir)
     tb_ind = 0
+
+    run = wandb.init(
+        name="basic-5sample-pre",
+        reinit=True,
+        project="jackrabbot-agentformer",
+        config=cfg
+    )
 
     """ data """
     generator = data_generator(cfg, log, split='train', phase='training')

@@ -134,7 +134,7 @@ if __name__ == '__main__':
     if torch.cuda.is_available(): torch.cuda.set_device(args.gpu)
     torch.set_grad_enabled(False)
     log = open(os.path.join(cfg.log_dir, 'log_test.txt'), 'w')
-
+    
     for epoch in epochs:
         prepare_seed(cfg.seed)
         """ model """

@@ -1,4 +1,5 @@
 from data.nuscenes_pred_split import get_nuscenes_pred_split
+from data.jrdb_split import get_jackrabbot_split
 import os, random, numpy as np, copy
 
 from .preprocessor import preprocess
@@ -25,6 +26,10 @@ class data_generator(object):
         elif parser.dataset in {'eth', 'hotel', 'univ', 'zara1', 'zara2'}:
             data_root = parser.data_root_ethucy            
             seq_train, seq_val, seq_test = get_ethucy_split(parser.dataset)
+            self.init_frame = 0
+        elif parser.dataset == "jackrabbot":
+            data_root = parser.data_root_jackrabbot
+            seq_train, seq_val, seq_test = get_jackrabbot_split(data_root)
             self.init_frame = 0
         else:
             raise ValueError('Unknown dataset!')

@@ -3,6 +3,7 @@ import numpy as np
 import argparse
 from data.nuscenes_pred_split import get_nuscenes_pred_split
 from data.ethucy_split import get_ethucy_split
+from data.jrdb_split import get_jackrabbot_split
 from utils.utils import print_log, AverageMeter, isfile, print_log, AverageMeter, isfile, isfolder, find_unique_common_from_lists, load_list_from_folder, load_txt_file
 
 
@@ -123,6 +124,11 @@ if __name__ == '__main__':
         gt_dir = f'{data_root}/label/{args.data}'
         seq_train, seq_val, seq_test = get_nuscenes_pred_split(data_root)
         seq_eval = globals()[f'seq_{args.data}']
+    elif dataset == "jackrabbot":
+        data_root = f'datasets/jackrabbot'
+        gt_dir = f'{data_root}/label/{args.data}'
+        seq_train, seq_val, seq_test = get_jackrabbot_split(data_root)
+        seq_eval = globals()[f'seq_{args.data}']
     else:                            # ETH/UCY
         gt_dir = f'datasets/eth_ucy/{args.dataset}'
         seq_train, seq_val, seq_test = get_ethucy_split(args.dataset)
@@ -199,7 +205,7 @@ if __name__ == '__main__':
                 meter.update(value, n=len(agent_traj))
 
             stats_str = ' '.join([f'{x}: {y.val:.4f} ({y.avg:.4f})' for x, y in stats_meter.items()])
-            print_log(f'evaluating seq {seq_name:s}, forecasting frame {int(frame_list[0]):06d} to {int(frame_list[-1]):06d} {stats_str}', log_file)
+            # print_log(f'evaluating seq {seq_name:s}, forecasting frame {int(frame_list[0]):06d} to {int(frame_list[-1]):06d} {stats_str}', log_file)
 
     print_log('-' * 30 + ' STATS ' + '-' * 30, log_file)
     for name, meter in stats_meter.items():
